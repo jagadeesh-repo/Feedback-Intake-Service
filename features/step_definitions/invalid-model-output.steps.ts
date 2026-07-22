@@ -5,6 +5,7 @@ import { extractFeedbackContent, type ExtractionResult } from "../../lib/ai-extr
 let callCount = 0;
 let result: ExtractionResult;
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function alwaysInvalidModelCaller(_text: string): Promise<unknown> {
   callCount += 1;
   return Promise.resolve({ not: "a valid content payload" });

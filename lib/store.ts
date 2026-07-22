@@ -1,7 +1,6 @@
 import type { FeedbackRecord } from "./schema";
 
 declare global {
-  // eslint-disable-next-line no-var
   var __feedbackStore: Map<string, FeedbackRecord> | undefined;
 }
 
