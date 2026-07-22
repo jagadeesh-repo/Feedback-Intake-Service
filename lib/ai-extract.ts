@@ -66,3 +66,26 @@ export function parseContent(
   }
   return { success: false, error: result.error.message };
 }
+
+export type ExtractionResult =
+  | { status: "ok"; content: FeedbackContent }
+  | { status: "extraction_failed"; error: string; rawOutput: unknown };
+
+export async function extractFeedbackContent(
+  text: string,
+  modelCaller: (text: string) => Promise<unknown> = callModel
+): Promise<ExtractionResult> {
+  const firstRaw = await modelCaller(text);
+  const first = parseContent(firstRaw);
+  if (first.success) {
+    return { status: "ok", content: first.data };
+  }
+
+  const secondRaw = await modelCaller(text);
+  const second = parseContent(secondRaw);
+  if (second.success) {
+    return { status: "ok", content: second.data };
+  }
+
+  return { status: "extraction_failed", error: second.error, rawOutput: secondRaw };
+}
