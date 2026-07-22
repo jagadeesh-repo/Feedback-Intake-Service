@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Feedback Intake Service
 
-## Getting Started
+A small service that takes freeform feedback text, extracts a structured summary via an AI model, validates it against a contract, stores it, and exposes it through a typed API and a minimal dashboard. Built for the Evinova Full-Stack Engineering Exercise.
 
-First, run the development server:
+## Requirements
+
+- Node.js 20+
+- npm
+
+## Setup
+
+```bash
+npm install
+cp .env.example .env.local
+```
+
+## Running it
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visit `http://localhost:3000` for the dashboard. The API is available under `http://localhost:3000/api/feedback`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**By default, the AI extraction call is mocked** — no API key required, and the service runs fully offline. Every submission returns a fixed mock content payload; this is enough to exercise the full contract → store → API → dashboard path without any external dependency.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+To use a real Anthropic call instead, set in `.env.local`:
 
-## Learn More
+```
+USE_REAL_AI=true
+ANTHROPIC_API_KEY=sk-ant-...
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Running the tests
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**Cucumber (the two acceptance scenarios from PLAN.md):**
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run test:bdd
+```
 
-## Deploy on Vercel
+**Unit tests (schema, store, id generation, mock AI path):**
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run test
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Trying the API manually
+
+```bash
+# Submit feedback
+curl -X POST http://localhost:3000/api/feedback \
+  -H "content-type: application/json" \
+  -d '{"text": "The export button does nothing when I click it on Safari"}'
+
+# List all records
+curl http://localhost:3000/api/feedback
+
+# Get one record (replace :id with an id from the list above)
+curl http://localhost:3000/api/feedback/:id
+```
+
+## What's stubbed
+
+- The AI extraction call is mocked by default (see above) — a deliberate default, not an oversight.
+- The store is in-memory only; all data is lost when the dev server restarts.
+
+## Project docs
+
+- `PLAN.md` — scope, risks, acceptance criteria (Gherkin).
+- `HARDENING.md` — what was tightened, what was correctly left out for a 4-5 hour exercise, and why.
+- `DECISIONS.md` — key choices, known limitations, and where AI drove implementation vs. where the calls were made directly.
+- `infra/cdk/` — AWS CDK description of the target production shape (API Gateway → Lambda → DynamoDB). Not deployed.
