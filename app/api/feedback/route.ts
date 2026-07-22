@@ -15,7 +15,23 @@ export async function POST(request: NextRequest) {
   }
 
   const { text } = parsedRequest.data;
-  const extraction = await extractFeedbackContent(text);
+
+  // A bad *response* from the model (unparseable or schema-invalid content) is
+  // handled inside extractFeedbackContent and flows through the retry-then-flag
+  // gate. A thrown error here means the model could not be reached at all
+  // (network failure, missing/invalid API key, non-200) — that is not a flagged
+  // record, it is an upstream outage, so surface it as a 502 rather than
+  // storing a fake "extraction_failed" record or crashing with a 500.
+  let extraction;
+  try {
+    extraction = await extractFeedbackContent(text);
+  } catch {
+    return NextResponse.json(
+      { error: "Feedback extraction is temporarily unavailable" },
+      { status: 502 }
+    );
+  }
+
   const submittedAt = new Date().toISOString();
   const id = generateFeedbackId();
 

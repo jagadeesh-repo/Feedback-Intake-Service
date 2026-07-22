@@ -26,7 +26,7 @@ async function callAnthropic(text: string): Promise<unknown> {
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
+      model: "claude-sonnet-5",
       max_tokens: 500,
       messages: [
         {
@@ -47,7 +47,44 @@ async function callAnthropic(text: string): Promise<unknown> {
     throw new Error("Anthropic response contained no text block");
   }
 
-  return JSON.parse(textBlock.text);
+  return extractJson(textBlock.text);
+}
+
+/**
+ * Best-effort extraction of a JSON object from a model's text response.
+ *
+ * Models frequently wrap JSON in markdown fences (```json ... ```) or add a
+ * sentence of prose despite being told not to. Rather than throwing on those
+ * (which would bypass the retry-then-flag gate and surface as a 500), we try a
+ * few progressively looser strategies and, if none parse, return the raw text
+ * unchanged so that downstream schema validation fails and the record is
+ * flagged as extraction_failed — a bad response is a contract problem, not a
+ * crash.
+ */
+export function extractJson(text: string): unknown {
+  const trimmed = text.trim();
+  const candidates = [trimmed];
+
+  const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fenceMatch) {
+    candidates.push(fenceMatch[1].trim());
+  }
+
+  const firstBrace = trimmed.indexOf("{");
+  const lastBrace = trimmed.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    candidates.push(trimmed.slice(firstBrace, lastBrace + 1));
+  }
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Try the next, looser candidate.
+    }
+  }
+
+  return text;
 }
 
 export async function callModel(text: string): Promise<unknown> {
