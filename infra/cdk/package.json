@@ -1,0 +1,13 @@
+{
+  "name": "feedback-intake-infra",
+  "private": true,
+  "scripts": {
+    "synth": "cdk synth"
+  },
+  "devDependencies": {
+    "aws-cdk": "^2",
+    "aws-cdk-lib": "^2",
+    "constructs": "^10",
+    "typescript": "^5"
+  }
+}
