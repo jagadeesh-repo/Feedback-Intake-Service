@@ -28,6 +28,7 @@ export class FeedbackIntakeStack extends Stack {
     const handler = new Function(this, "FeedbackApiHandler", {
       runtime: Runtime.NODEJS_20_X,
       handler: "index.handler",
+      // Illustrative path — this stack is described, not synthesized/deployed; no Lambda bundle is built in this exercise.
       code: Code.fromAsset("../../dist/lambda"),
       timeout: Duration.seconds(10),
       environment: {
