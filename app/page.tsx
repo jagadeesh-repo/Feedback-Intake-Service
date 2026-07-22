@@ -1,5 +1,13 @@
 import { listRecords } from "@/lib/store";
 
+// This page has no dynamic data source Next.js recognizes automatically (no
+// cookies()/headers()/searchParams, no uncached fetch), so the App Router
+// treats it as eligible for static rendering / the Full Route Cache and
+// would otherwise serve a cached render instead of re-executing
+// listRecords() on every request — even in `next dev`. Force dynamic
+// rendering so the dashboard always reflects the current in-memory store.
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage() {
   const records = listRecords();
   const countsByCategory = records.reduce<Record<string, number>>((acc, record) => {

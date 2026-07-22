@@ -1,6 +1,12 @@
 import type { FeedbackRecord } from "./schema";
 
-const records = new Map<string, FeedbackRecord>();
+declare global {
+  // eslint-disable-next-line no-var
+  var __feedbackStore: Map<string, FeedbackRecord> | undefined;
+}
+
+const records = globalThis.__feedbackStore ?? new Map<string, FeedbackRecord>();
+globalThis.__feedbackStore = records;
 
 export function saveRecord(record: FeedbackRecord): FeedbackRecord {
   records.set(record.id, record);
