@@ -1,6 +1,46 @@
 # Feedback Intake Service
 
-A small service that takes freeform feedback text, extracts a structured summary via an AI model, validates it against a contract, stores it, and exposes it through a typed API and a minimal dashboard. Built for the Evinova Full-Stack Engineering Exercise.
+A small service that takes freeform feedback text, extracts a structured summary via an AI model, validates it against a contract, stores it, and exposes it through a typed API and a minimal dashboard.
+
+## How it works
+
+Freeform text is validated at every boundary before it's trusted. The three ①②③ below are the Zod validation boundaries — nothing untrusted (the request body, the model's output) reaches the store without passing a contract, and the model owns only the content fields while our code owns the record's shape.
+
+```text
+   [ Dashboard form ]        [ POST /api/feedback ]
+            \                        /
+             ▼                      ▼
+    ┌────────────────────────────────────┐
+    │ ①  Zod — request boundary          │  SubmitFeedbackRequestSchema
+    │    empty / oversized text  → 400    │
+    └─────────────────┬──────────────────┘
+                      ▼
+    ┌────────────────────────────────────┐
+    │ AI extraction — one model call      │  mocked unless USE_REAL_AI=true
+    │ extractJson: model text → object    │ 
+    └─────────────────┬──────────────────┘
+                      ▼
+    ┌────────────────────────────────────┐
+    │ ②  Zod — AI-output boundary        │  FeedbackContentSchema
+    │    invalid → retry once → flag      │  → status "extraction_failed" (still stored)
+    └─────────────────┬──────────────────┘
+                      ▼
+    ┌────────────────────────────────────┐
+    │ assemble record                     │  code owns id / submittedAt / status
+    │ (model owns content fields only)    │
+    └─────────────────┬──────────────────┘
+                      ▼
+    ┌────────────────────────────────────┐
+    │ ③  Zod — internal contract check   │  FeedbackRecordSchema
+    │    defensive, before store → 500    │
+    └─────────────────┬──────────────────┘
+                      ▼
+    ┌────────────────────────────────────┐
+    │ in-memory store (globalThis)        │  → 201 Created
+    └─────────────────┬──────────────────┘
+                      ▼
+   GET /api/feedback · /api/feedback/:id (404 if absent) · dashboard (table + counts)
+```
 
 ## Requirements
 
@@ -25,7 +65,7 @@ npm run dev
 
 Visit `http://localhost:3000` for the dashboard — it has a form to submit feedback and shows the stored records plus a counts-by-category view. The same submit path is also available as a typed API under `http://localhost:3000/api/feedback` (see "Trying the API manually" below).
 
-**By default, the AI extraction call is mocked** — no API key required, and the service runs fully offline. Every submission returns a fixed mock content payload; this is enough to exercise the full contract → store → API → dashboard path without any external dependency.
+**By default, the AI extraction call is mocked** — no API key required, and the service runs fully offline. Every submission returns a fixed mock content payload (see "How it works" above for where this sits in the flow).
 
 To use a real Anthropic call instead, set in `.env.local`:
 
@@ -33,6 +73,8 @@ To use a real Anthropic call instead, set in `.env.local`:
 USE_REAL_AI=true
 ANTHROPIC_API_KEY=sk-ant-...
 ```
+
+The model is configurable via `ANTHROPIC_MODEL` (defaults to `claude-sonnet-5` if unset).
 
 ## Running the tests
 
@@ -87,17 +129,7 @@ curl http://localhost:3000/api/feedback/:id
 - The AI extraction call is mocked by default (see above) — a deliberate default, not an oversight.
 - The store is in-memory only; all data is lost when the dev server restarts.
 
-### Demonstrating the failure path offline
-
-On the mock path (i.e. `USE_REAL_AI` not set to `true`), set `MOCK_AI_MODE=invalid` to make the mock return content that fails the contract. Every submission then exercises the retry-then-flag gate and is stored as an `extraction_failed` record — useful for showing the negative path in the dashboard without a real API call:
-
-```bash
-# Windows (Command Prompt):  set MOCK_AI_MODE=invalid && npm run dev
-# Windows (PowerShell):      $env:MOCK_AI_MODE="invalid"; npm run dev
-MOCK_AI_MODE=invalid npm run dev
-```
-
-The `invalid-model-output` Cucumber scenario (`npm run test:bdd`) proves the same behavior as an executable, test-first specification.
+The `invalid-model-output` Cucumber scenario (`npm run test:bdd`) proves the extraction-failure path as an executable, test-first specification.
 
 ## Project docs
 

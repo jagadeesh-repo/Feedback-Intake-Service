@@ -8,6 +8,7 @@
 - **Request-boundary validation:** the submit endpoint validates the incoming body against `SubmitFeedbackRequestSchema` before doing anything else — empty or oversized text is rejected with a 400, not passed to the model.
 - **Internal contract check:** even after extraction succeeds, the assembled record is re-validated against the full `FeedbackRecord` schema before being stored — a defensive check against a future bug in the assembly code, not just the model's output.
 - **Not-found handling:** requesting an unknown record id returns a 404, not a 500 or an unhandled exception.
+- **Duplicate-submission guard:** while a submission is in flight, the dashboard's submit button disables itself and shows a pending state (via the form's `useFormStatus`), so a slow round-trip can't be turned into duplicate records by an impatient double-click.
 
 ## What was correctly left out, and why
 
