@@ -31,7 +31,7 @@ The stack is a single environment — promotion and rollback aren't built into i
 
 - If a `cdk deploy` fails partway, CloudFormation rolls the stack back to the last good state on its own.
 - To undo a deploy that succeeded but shipped a bug: the infra is just versioned code, so `git revert` the change and `cdk deploy` again — that redeploys the previous template.
-- For data, I'd turn on DynamoDB point-in-time recovery (one property on the table). I've left it off in this sketch.
+- For data, the DynamoDB table has point-in-time recovery turned on, so accidental writes or deletes can be restored to any second in the last 35 days.
 
 **Promotion — this is the part that needs real code, and isn't here yet:**
 

@@ -19,6 +19,9 @@ export class FeedbackIntakeStack extends Stack {
     const table = new Table(this, "FeedbackTable", {
       partitionKey: { name: "id", type: AttributeType.STRING },
       billingMode: BillingMode.PAY_PER_REQUEST,
+      // Point-in-time recovery: restore the table to any second in the last 35
+      // days — the data-side of the rollback story (see the README).
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
     });
 
     const logGroup = new LogGroup(this, "FeedbackApiLogGroup", {
