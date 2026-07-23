@@ -18,8 +18,6 @@ Notes on the choices that weren't obvious, and why I made them.
 
 - **The dashboard reads the store directly, not over HTTP.** It's the same process, so calling my own API endpoint would just add complexity for no gain. The API is still fully typed and covered by the tests and the curl examples.
 
-- **The store is keyed off `globalThis`.** This came from a real bug: in Next.js dev, the dashboard page and the API routes ended up with separate copies of the store, so records submitted through the API never showed on the page. I found it with curl (submit worked, the list showed the record, the page stayed empty) and fixed it with the standard Next.js trick for this — the same one used for Prisma/Redis clients. The page also needs `dynamic = "force-dynamic"` so it re-runs on every request.
-
 - **Cucumber for the acceptance tests.** The brief named it as the example, so I used the real tool instead of a lookalike.
 
 - **One shared submit function.** The API route and the dashboard form both go through `createFeedbackRecord`, so the extract → validate → store logic lives in one place. Each caller just handles the result its own way — HTTP status codes for the API, a page refresh for the form.

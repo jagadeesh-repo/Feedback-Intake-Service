@@ -16,6 +16,8 @@
 
 - **No accidental double-submits.** While a submission is in flight, the submit button is disabled and shows a spinner, so an impatient double-click can't create duplicate records.
 
+- **The store works the same across the page and the API.** In Next.js dev, the dashboard page and the API routes ended up with separate copies of the in-memory store, so records submitted through the API never showed on the page. I found it with curl — submit worked, the list showed the record, but the page stayed empty — and fixed it by keying the store off `globalThis`, the standard Next.js trick (the same one used for Prisma/Redis clients). The page also needs `dynamic = "force-dynamic"` so it re-runs on every request.
+
 ## What I left out, and why
 
 - **CI** — overkill for a few-hour exercise. The tests run with one command (see the README).
