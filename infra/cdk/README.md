@@ -23,6 +23,16 @@ The CDK sketches the serverless target as the thing to discuss. In practice I'd 
 
 ## Deploy, promotion, rollback
 
-- **Deploy:** `npm install` in `infra/cdk`, `cdk bootstrap` once per account/region, then `cdk deploy`.
-- **Promotion:** one stack per environment (dev / staging / prod), each its own deploy. Promoting means deploying the same code to the next environment — from CI (GitHub Actions or CDK Pipelines) rather than by hand.
-- **Rollback:** CloudFormation rolls back automatically if a deploy fails. To undo a deploy that succeeded but was bad, redeploy the previous commit. For data, DynamoDB point-in-time recovery covers accidental writes or deletes.
+The stack is a single environment — promotion and rollback aren't built into it. That's fine for a describe-only sketch, but here's how each would actually work and what it would take.
+
+**Deploy:** `npm install` here, `cdk bootstrap` once per account/region, then `cdk deploy`.
+
+**Rollback — mostly free from the platform, not something I coded:**
+
+- If a `cdk deploy` fails partway, CloudFormation rolls the stack back to the last good state on its own.
+- To undo a deploy that succeeded but shipped a bug: the infra is just versioned code, so `git revert` the change and `cdk deploy` again — that redeploys the previous template.
+- For data, I'd turn on DynamoDB point-in-time recovery (one property on the table). I've left it off in this sketch.
+
+**Promotion — this is the part that needs real code, and isn't here yet:**
+
+- Today `bin/app.ts` creates one stack. I'd parameterise it per environment (dev / staging / prod) — either instantiate the stack once per env config, or use CDK Pipelines, which builds the app once and promotes that same artifact through the stages with a manual approval gate before prod.
