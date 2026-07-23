@@ -11,7 +11,10 @@ A small service that takes freeform feedback text, extracts a structured summary
 
 ```bash
 npm install
-cp .env.example .env.local
+## for linux/macos
+cp .env.example .env.local 
+## for windows
+copy .env.example .env.local
 ```
 
 ## Running it
@@ -47,12 +50,31 @@ npm run test
 
 ## Trying the API manually
 
+Submitting feedback sends a JSON body, and shell quoting rules differ by platform — use the form that matches your shell.
+
+**Linux / macOS (bash / zsh):**
+
 ```bash
-# Submit feedback
 curl -X POST http://localhost:3000/api/feedback \
   -H "content-type: application/json" \
   -d '{"text": "The export button does nothing when I click it on Safari"}'
+```
 
+**Windows — Command Prompt (cmd.exe):**
+
+```bat
+curl -X POST http://localhost:3000/api/feedback -H "content-type: application/json" -d "{\"text\": \"The export button does nothing when I click it on Safari\"}"
+```
+
+**Windows — PowerShell** (here `curl` is an alias for `Invoke-WebRequest`, so use `Invoke-RestMethod`):
+
+```powershell
+Invoke-RestMethod -Uri http://localhost:3000/api/feedback -Method Post -ContentType "application/json" -Body '{"text": "The export button does nothing when I click it on Safari"}'
+```
+
+List all records and fetch one by id have no body, so the same command works in bash and cmd (in PowerShell use `curl.exe` instead of `curl`, or just open the URL in a browser):
+
+```bash
 # List all records
 curl http://localhost:3000/api/feedback
 
