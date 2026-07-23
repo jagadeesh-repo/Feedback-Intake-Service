@@ -1,28 +1,34 @@
 # Hardening
 
-## What was tightened
+## What I tightened
 
-- **Invalid-model-output gate:** the model's response is validated against the content-only contract before it's trusted. On failure, one identical retry (absorbs transient model flakiness — not a corrective re-prompt; the retry doesn't feed the prior failure back into the second attempt); if that also fails, the record is stored with `status: "extraction_failed"` and the raw model output preserved in `extractionError` rather than silently defaulted to plausible-looking fake content. Failure is visible in both the API and the dashboard.
-- **Tolerant response parsing (`extractJson`):** models routinely wrap JSON in markdown fences (` ```json … ``` `) or add a sentence of prose despite being told not to. Rather than `JSON.parse`-ing the raw text (which throws on a leading backtick and would bypass the gate as an unhandled 500), the response is run through progressively looser strategies — direct parse, fenced-block extraction, first-`{`-to-last-`}` extraction — and if none parse, the raw text is returned so it fails schema validation and flows through the same retry-then-flag path. A malformed response is treated as a contract problem, not a crash.
-- **Upstream-failure isolation:** a bad *response* (unparseable or schema-invalid content) is flagged and stored; a thrown error means the model could not be reached at all (network failure, missing/invalid API key, non-200). Those are semantically different, so the submit route catches the latter and returns a `502` rather than fabricating an `extraction_failed` record or crashing with a `500` — an outage is surfaced as an outage.
-- **Request-boundary validation:** the submit endpoint validates the incoming body against `SubmitFeedbackRequestSchema` before doing anything else — empty or oversized text is rejected with a 400, not passed to the model.
-- **Internal contract check:** even after extraction succeeds, the assembled record is re-validated against the full `FeedbackRecord` schema before being stored — a defensive check against a future bug in the assembly code, not just the model's output.
-- **Not-found handling:** requesting an unknown record id returns a 404, not a 500 or an unhandled exception.
-- **Duplicate-submission guard:** while a submission is in flight, the dashboard's submit button disables itself and shows a pending state (via the form's `useFormStatus`), so a slow round-trip can't be turned into duplicate records by an impatient double-click.
+- **Bad model output is caught, not trusted.** The response is checked against the schema. If it fails, I retry once; if it still fails, the record is stored marked `extraction_failed` with the raw output kept for reference. (The retry is just a second try — it doesn't feed the error back to the model.)
 
-## What was correctly left out, and why
+- **Messy-but-valid responses still work.** Models often wrap JSON in ```` ```json ```` fences or add a sentence around it. Instead of letting that crash the parse, `extractJson` tries a few ways to pull the JSON out. If nothing works, it passes the raw text on so the schema check flags it — a bad response is treated as bad data, never a crash.
 
-- **CI gates** — no pipeline runs the tests on push. Correctly out of scope for a 4-5 hour local exercise; the test suite runs manually and is documented in the README.
-- **End-to-end tests** — the two Gherkin scenarios exercise the extraction/contract logic directly, which is where the interesting behavior lives. Browser-level e2e tests would mostly re-test Next.js routing, not this service's logic — not a good use of a tightly scoped time budget.
-- **Promotion with approvals and rollback** — nothing is deployed, so there's nothing to promote or roll back. Addressed narratively in the CDK write-up instead, since that's where it would actually apply.
-- **Observability (logging/metrics/tracing)** — a single in-memory service with no deployment has no operational surface to observe yet. Before this went near production, the first investment would be structured logging around the AI call (latency, retry count, failure rate), not a generic logging library.
-- **Rate limiting / cost controls on the AI call** — genuinely worth having before production, left out here because the exercise explicitly scopes to a single call path with no auth, so there's no realistic abuse surface yet.
-- **Guaranteed-structured model output (tool use / structured outputs)** — the current approach asks for JSON in the prompt and parses defensively (see `extractJson` above), which is robust to fences and prose. The stronger production move is to stop relying on the model's free-form text at all: use Anthropic tool-use / structured-output so the provider returns schema-shaped JSON by construction. Left out here because the defensive parse is proportionate for a 4-5 hour exercise and keeps the single-call shape simple, but it's the next step that would make the malformed-output path rare rather than merely handled.
+- **"Bad output" and "model unreachable" are handled differently.** Bad output gets flagged and stored. But if the call itself fails (network, bad key, non-200), that's an outage, not a record — so the API returns a 502 instead of storing a fake failed record or throwing a 500.
+
+- **Input is validated first.** Empty or oversized text is rejected with a 400 before the model is ever called.
+
+- **The finished record is re-checked before saving.** Even after a good extraction, I validate the assembled record against the full schema — a guard against a bug in my own assembly code.
+
+- **Unknown ids return 404**, not a crash.
+
+- **No accidental double-submits.** While a submission is in flight, the submit button is disabled and shows a spinner, so an impatient double-click can't create duplicate records.
+
+## What I left out, and why
+
+- **CI** — overkill for a few-hour exercise. The tests run with one command (see the README).
+- **Browser / end-to-end tests** — the two Gherkin tests already cover the interesting logic. E2E would mostly test Next.js routing, not this service.
+- **Deploy promotion / rollback** — nothing is deployed. This belongs with the CDK, and I describe it there.
+- **Logging / metrics / tracing** — a single in-memory service has nothing to observe yet. In production the first thing I'd add is logging around the AI call.
+- **Rate limiting / cost caps** — worth having in production, but there's no auth and one call path here, so no real abuse surface.
+- **Guaranteed-valid output (tool use / structured outputs)** — I ask for JSON in the prompt and parse defensively, which handles the messy cases. The stronger move is to have the model return schema-shaped JSON by construction, so bad output becomes rare instead of just handled. I kept the simpler approach for this exercise.
 
 ## What I'd add before production
 
-1. CI running the Cucumber + Vitest suites on every PR, blocking merge on failure.
-2. Structured logging on the AI call path (attempt count, latency, failure reason) — the first thing worth having visibility into, since it's the one call in the system with external, non-deterministic behavior.
-3. A real datastore (the brief scoped in-memory; DynamoDB is already sketched in the CDK) with a migration path.
-4. Auth on the submit endpoint, since it's currently open to anyone who can reach it.
-5. A cap on retries and a circuit breaker if the AI provider is down, so a provider outage degrades gracefully instead of doubling every request's latency.
+1. CI running the tests on every PR.
+2. Logging around the AI call — attempts, latency, failures — since it's the one non-deterministic part of the system.
+3. A real database (DynamoDB is already sketched in the CDK).
+4. Auth on the submit endpoint.
+5. A retry cap and a circuit breaker for when the AI provider is down.

@@ -1,33 +1,43 @@
 # Decisions
 
-## Key choices and why
+Notes on the choices that weren't obvious, and why I made them.
 
-- **Single Next.js app (API + dashboard together)** rather than a separate backend/frontend. Given the 4-5 hour budget, this halves scaffolding time and plays to my strongest stack without being a corner-cut — the CDK write-up still describes a different target production shape (API Gateway → Lambda → DynamoDB) that the local dev setup doesn't need to mirror 1:1.
-- **Mock-by-default AI call, real call opt-in via `USE_REAL_AI=true`.** Protects anyone running this locally without an Anthropic API key, and protects a live demo from an API outage or rate limit.
-- **Retry-once-then-flag on invalid model output**, rather than retry-until-success or silently defaulting to plausible-looking content. A single retry absorbs ordinary model flakiness; flagging (rather than faking a default) means a failure is always visible in the data, never hidden. This mirrors a guardrail pattern I run in production for an AI concierge I built and operate (Zod-validated outputs with a visible failure state) — informal production instinct, not a formal eval harness.
-- **`extractFeedbackContent` takes an injectable model-caller function** (defaulting to the real `callModel`). This is what makes the retry-then-flag behavior testable without mocking modules — the Cucumber step definitions inject a fake caller that always returns invalid content, rather than reaching into the Anthropic SDK's internals.
-- **`extraction_failed` records still populate every content field** with clear placeholder values (rather than leaving them absent), so every stored record satisfies the same `FeedbackRecordSchema` regardless of outcome — the failure signal lives in `status` and `extractionError`, not in an inconsistent record shape.
-- **`extraction_failed` as a `status` value (a deliberate deviation from the reference `new | triaged | resolved`).** When the model's output still can't be validated after the retry, the feedback is stored *flagged* rather than discarded — the raw input isn't lost and the failure stays visible for manual triage. I put it in the `status` enum knowing it arguably mixes two axes: `new/triaged/resolved` is a triage *lifecycle*, while `extraction_failed` is a processing *outcome*. I collapsed them into one enum for this single-call intake service because it keeps every record one uniform shape and surfaces in one column. At scale I'd separate them — a pure triage `status` plus a distinct `extractionStatus` (`ok`/`failed`) — so a human could triage a failed-extraction record without the two states colliding.
-- **Schema extensions beyond the reference shape:** added `rawText` (the original submission, useful for triage and for reprocessing) and `extractionError` (populated only when `status === "extraction_failed"`, holds the validation error for debugging). Both are additive and don't change the reference fields' meaning.
-- **Broadened the category taxonomy to a bounded generic set.** The reference categories (`bug | feature_request | praise | other`) read as software-specific; I widened them to `praise | complaint | suggestion | question | bug | other` to cover general feedback. I deliberately kept `category` a *bounded enum* rather than a free-form string: a closed set is what makes the counts-by-category aggregate meaningful and keeps `category` a checkable contract at the validation boundary. The open-ended specifics of whatever a user actually writes are captured in the free-form `summary` and `suggestedAction` fields, with `other` as the catch-all.
-- **Dashboard reads the in-memory store directly** rather than calling its own API route over HTTP. In a single-process dev server, a self-referential HTTP call adds complexity (needing an absolute base URL) for no real benefit — the API is still fully typed and independently exercised by the Cucumber scenarios and the documented curl checks in the README.
-- **The store is backed by `globalThis`, not a plain module-level `const`.** Building the dashboard surfaced a real bug: Next.js's Turbopack dev bundler gives the page (a React Server Component) and the API route handlers separate module instances of `lib/store.ts` — a plain `const records = new Map()` was silently two different Maps, so records created via the API never appeared on the dashboard. Reproduced with curl (submit → list confirms the record exists → dashboard still shows empty), root-caused by instrumenting the store to confirm two distinct Map instances, then fixed with the standard Next.js-ecosystem pattern for this exact class of problem (the same technique used for Prisma Client / Redis singletons surviving dev-mode module duplication): key the Map off `globalThis` so every bundle resolves to the same instance. Verified fixed end-to-end (dashboard reflects a submission immediately, no restart needed) and verified the fix doesn't leak state across a full server restart (still correctly empty on fresh start, preserving the in-memory non-goal). The dashboard page also needed `export const dynamic = "force-dynamic"` alongside the store fix — without it, the page could still be statically cached and not re-execute per request even with a correctly shared store.
-- **Cucumber over a Vitest-Gherkin plugin.** The brief specifically names Cucumber as the example Gherkin runner; using the actual standard tool is more defensible than a lesser-known plugin, and it's genuine hands-on use of a tool previously only understood in theory.
-- **A submission form on the dashboard, in addition to the API.** The brief scopes the dashboard to "show records + one aggregate view" and puts submission on the API, so a form is slightly beyond the literal dashboard requirement. I added one anyway because the Context frames the product as "users submit freeform feedback text," and a submit path that only exists as a `curl` command felt incomplete for an actual user flow. It's a minimal server-action form (native `required`/`maxLength` validation, no client JS) — deliberately not the gold-plating the non-goals warn against.
-- **Shared submit path (`createFeedbackRecord`) between the API route and the form's server action.** Rather than duplicate the extract → assemble → validate → store logic in two places, both callers go through one function that returns a discriminated outcome (`ok` / `upstream_unavailable` / `contract_violation`); the API maps that to HTTP status codes and the server action maps it to a page revalidation. Adding the form was the trigger, but this also removed logic that would otherwise have drifted between the two entry points.
+## Key choices
+
+- **One Next.js app for both the API and the dashboard.** With only a few hours, this was faster than splitting frontend and backend, and it's my strongest stack. The CDK sketch still describes the real production shape (API Gateway → Lambda → DynamoDB); the local setup doesn't need to match it.
+
+- **The AI call is mocked by default; the real one is opt-in with `USE_REAL_AI=true`.** So it runs with no API key, and a live demo can't be broken by an outage or rate limit.
+
+- **On bad model output: retry once, then flag.** If the model returns something that doesn't fit the schema, I try once more. If it still fails, the record is stored marked `extraction_failed`, with the raw output kept in `extractionError`. I don't retry forever or invent a plausible answer — a failure should be visible in the data, not hidden.
+
+- **The model only owns the content fields.** Category, sentiment, severity, summary, and suggested action come from the model. The id, timestamp, and status are set by my code. I also added two fields the reference shape didn't have: `rawText` (the original text, so nothing is lost) and `extractionError` (why a record was flagged).
+
+- **`extraction_failed` is a status value.** I added it to the reference set (`new`/`triaged`/`resolved`). It's arguably a different kind of thing — the others say where a record is in review, this one says whether the AI succeeded. I kept them in one enum for simplicity; in a bigger system I'd split it into a separate `extractionStatus` field so a human could still triage a failed record.
+
+- **Broader categories, but still a fixed list.** The reference ones were software-specific (bug, feature_request, praise, other). I widened them to praise / complaint / suggestion / question / bug / other. I kept it a fixed list rather than a free-form label on purpose: a closed set is what makes the "counts by category" view meaningful and keeps the field something we can validate. Whatever the user actually wrote lives in the summary and suggested-action fields.
+
+- **The dashboard reads the store directly, not over HTTP.** It's the same process, so calling my own API endpoint would just add complexity for no gain. The API is still fully typed and covered by the tests and the curl examples.
+
+- **The store is keyed off `globalThis`.** This came from a real bug: in Next.js dev, the dashboard page and the API routes ended up with separate copies of the store, so records submitted through the API never showed on the page. I found it with curl (submit worked, the list showed the record, the page stayed empty) and fixed it with the standard Next.js trick for this — the same one used for Prisma/Redis clients. The page also needs `dynamic = "force-dynamic"` so it re-runs on every request.
+
+- **Cucumber for the acceptance tests.** The brief named it as the example, so I used the real tool instead of a lookalike.
+
+- **One shared submit function.** The API route and the dashboard form both go through `createFeedbackRecord`, so the extract → validate → store logic lives in one place. Each caller just handles the result its own way — HTTP status codes for the API, a page refresh for the form.
+
+- **A submit form on the dashboard.** The brief only asked the dashboard to show records, but the product is about people submitting feedback, so a form felt more complete than a curl-only path. It's deliberately minimal: a textarea and a button, no extra polish.
 
 ## Known limitations
 
-- In-memory store: all data is lost on restart. Expected and scoped by the brief.
-- Only one retry on invalid model output — a second consecutive failure is treated as final. A more resilient system might vary the re-prompt strategy or fall back to a different model.
-- No automated coverage of the API routes themselves (only the extraction/contract logic, which is where the two required scenarios live) — verified manually via the curl commands in the README instead, per the brief's explicit instruction not to chase broad coverage.
+- The store is in-memory, so everything is lost on restart. This is what the brief asked for.
+- Only one retry on bad output; a second failure in a row is treated as final.
+- I didn't write tests for the API routes themselves — the two required tests cover the extraction and contract logic, and the routes are checked by hand with the curl commands in the README.
 
-## What I'd do with more time
+## With more time
 
-- Add the CI/observability/rate-limiting items listed in HARDENING.md.
-- Extend the dashboard with a status filter and a resolve/triage action, since `status` already models that lifecycle.
-- Add a second model provider as a failover path — a pattern already used in a live production system (cost-ceiling failover on an AI concierge), and a natural extension of the retry logic already here.
+- CI, logging, and rate limiting (see HARDENING.md).
+- A resolve/triage action on the dashboard, since the status field already models that.
+- A second model as a fallback if the first is down — a natural extension of the retry that's already there.
 
-## Where AI helped vs where I decided
+## Where AI helped, and where I decided
 
-AI (Claude, via Claude Code) accelerated typing throughout — boilerplate for the Zod schemas, the Next.js route handlers, the Cucumber step-definition scaffolding, and this document's prose. The decisions it did not make: the retry-once-then-flag strategy and why (vs. retry-until-success or a silent default); the single-Next.js-app architecture call and its trade-off against a split backend/frontend; which schema fields to add and why; the choice of Cucumber over alternatives; the decision to keep the dashboard reading the store directly instead of round-tripping through the API; and the CDK construct list kept deliberately small rather than reaching for services I'd have to fake depth on live.
+I used Claude (via Claude Code) to speed up the typing: schema boilerplate, route handlers, test scaffolding, and drafts of these docs. The judgment calls were mine — retry-then-flag over retrying forever or faking a default, one app instead of two, which fields to add, using the real Cucumber, reading the store directly, and keeping the CDK small rather than padding it with services I couldn't speak to.
