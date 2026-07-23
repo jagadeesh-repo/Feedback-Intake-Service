@@ -1,4 +1,5 @@
 import { listRecords } from "@/lib/store";
+import { submitFeedbackAction } from "./actions";
 
 // This page has no dynamic data source Next.js recognizes automatically (no
 // cookies()/headers()/searchParams, no uncached fetch), so the App Router
@@ -18,6 +19,26 @@ export default async function DashboardPage() {
   return (
     <main className="mx-auto max-w-3xl p-8">
       <h1 className="text-2xl font-semibold mb-6">Feedback Intake Dashboard</h1>
+
+      <section className="mb-8">
+        <h2 className="text-lg font-medium mb-2">Submit feedback</h2>
+        <form action={submitFeedbackAction} className="flex flex-col gap-3">
+          <textarea
+            name="text"
+            required
+            maxLength={5000}
+            rows={3}
+            placeholder="Describe your feedback in a sentence or two…"
+            className="w-full rounded border p-3 text-sm"
+          />
+          <button
+            type="submit"
+            className="self-start rounded border bg-foreground px-4 py-2 text-sm font-medium text-background"
+          >
+            Submit
+          </button>
+        </form>
+      </section>
 
       <section className="mb-8">
         <h2 className="text-lg font-medium mb-2">Counts by category</h2>

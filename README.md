@@ -23,7 +23,7 @@ copy .env.example .env.local
 npm run dev
 ```
 
-Visit `http://localhost:3000` for the dashboard. The API is available under `http://localhost:3000/api/feedback`.
+Visit `http://localhost:3000` for the dashboard — it has a form to submit feedback and shows the stored records plus a counts-by-category view. The same submit path is also available as a typed API under `http://localhost:3000/api/feedback` (see "Trying the API manually" below).
 
 **By default, the AI extraction call is mocked** — no API key required, and the service runs fully offline. Every submission returns a fixed mock content payload; this is enough to exercise the full contract → store → API → dashboard path without any external dependency.
 
