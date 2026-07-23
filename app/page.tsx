@@ -1,6 +1,16 @@
 import { listRecords } from "@/lib/store";
 import { submitFeedbackAction } from "./actions";
 
+// The stored/API values are lowercase snake_case (the contract per the brief,
+// e.g. "feature_request", "extraction_failed"); this turns them into readable
+// Title Case labels for display only — presentation stays out of the contract.
+function toLabel(value: string): string {
+  return value
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 // This page has no dynamic data source Next.js recognizes automatically (no
 // cookies()/headers()/searchParams, no uncached fetch), so the App Router
 // treats it as eligible for static rendering / the Full Route Cache and
@@ -29,11 +39,11 @@ export default async function DashboardPage() {
             maxLength={5000}
             rows={3}
             placeholder="Describe your feedback in a sentence or two…"
-            className="w-full rounded border p-3 text-sm"
+            className="peer w-full rounded border p-3 text-sm"
           />
           <button
             type="submit"
-            className="self-start rounded border bg-foreground px-4 py-2 text-sm font-medium text-background"
+            className="self-start rounded border bg-foreground px-4 py-2 text-sm font-medium text-background peer-placeholder-shown:pointer-events-none peer-placeholder-shown:opacity-50"
           >
             Submit
           </button>
@@ -45,7 +55,7 @@ export default async function DashboardPage() {
         <ul className="flex gap-4">
           {Object.entries(countsByCategory).map(([category, count]) => (
             <li key={category} className="rounded border px-3 py-2">
-              <span className="font-mono text-sm text-gray-500">{category}</span>
+              <span className="text-sm text-gray-500">{toLabel(category)}</span>
               <span className="ml-2 font-semibold">{count}</span>
             </li>
           ))}
@@ -55,30 +65,32 @@ export default async function DashboardPage() {
 
       <section>
         <h2 className="text-lg font-medium mb-2">Records</h2>
-        <table className="w-full text-left text-sm border-collapse">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2 pr-4">Submitted</th>
-              <th className="py-2 pr-4">Category</th>
-              <th className="py-2 pr-4">Sentiment</th>
-              <th className="py-2 pr-4">Severity</th>
-              <th className="py-2 pr-4">Summary</th>
-              <th className="py-2 pr-4">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {records.map((record) => (
-              <tr key={record.id} className="border-b">
-                <td className="py-2 pr-4">{new Date(record.submittedAt).toLocaleString()}</td>
-                <td className="py-2 pr-4">{record.category}</td>
-                <td className="py-2 pr-4">{record.sentiment}</td>
-                <td className="py-2 pr-4">{record.severity}</td>
-                <td className="py-2 pr-4">{record.summary}</td>
-                <td className="py-2 pr-4">{record.status}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm border-collapse">
+            <thead>
+              <tr className="border-b">
+                <th className="py-2 pr-4">Submitted</th>
+                <th className="py-2 pr-4">Category</th>
+                <th className="py-2 pr-4">Sentiment</th>
+                <th className="py-2 pr-4">Severity</th>
+                <th className="py-2 pr-4">Summary</th>
+                <th className="py-2 pr-4">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {records.map((record) => (
+                <tr key={record.id} className="border-b">
+                  <td className="py-2 pr-4">{new Date(record.submittedAt).toLocaleString()}</td>
+                  <td className="py-2 pr-4">{toLabel(record.category)}</td>
+                  <td className="py-2 pr-4">{toLabel(record.sentiment)}</td>
+                  <td className="py-2 pr-4">{toLabel(record.severity)}</td>
+                  <td className="py-2 pr-4">{record.summary}</td>
+                  <td className="py-2 pr-4">{toLabel(record.status)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </main>
   );

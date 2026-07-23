@@ -87,6 +87,18 @@ curl http://localhost:3000/api/feedback/:id
 - The AI extraction call is mocked by default (see above) — a deliberate default, not an oversight.
 - The store is in-memory only; all data is lost when the dev server restarts.
 
+### Demonstrating the failure path offline
+
+On the mock path (i.e. `USE_REAL_AI` not set to `true`), set `MOCK_AI_MODE=invalid` to make the mock return content that fails the contract. Every submission then exercises the retry-then-flag gate and is stored as an `extraction_failed` record — useful for showing the negative path in the dashboard without a real API call:
+
+```bash
+# Windows (Command Prompt):  set MOCK_AI_MODE=invalid && npm run dev
+# Windows (PowerShell):      $env:MOCK_AI_MODE="invalid"; npm run dev
+MOCK_AI_MODE=invalid npm run dev
+```
+
+The `invalid-model-output` Cucumber scenario (`npm run test:bdd`) proves the same behavior as an executable, test-first specification.
+
 ## Project docs
 
 - `PLAN.md` — scope, risks, acceptance criteria (Gherkin).

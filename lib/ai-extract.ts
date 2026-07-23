@@ -8,8 +8,17 @@ const MOCK_RESPONSE: FeedbackContent = {
   suggestedAction: "Mocked suggested action.",
 };
 
+// Deliberately violates FeedbackContentSchema (invalid category, missing
+// fields) so that `MOCK_AI_MODE=invalid` can exercise the extraction_failed
+// path end-to-end offline — see README. A testing affordance, mock-path only.
+const INVALID_MOCK_RESPONSE: unknown = { category: "not_a_real_category" };
+
 function isRealAiEnabled(): boolean {
   return process.env.USE_REAL_AI === "true";
+}
+
+function mockResponse(): unknown {
+  return process.env.MOCK_AI_MODE === "invalid" ? INVALID_MOCK_RESPONSE : MOCK_RESPONSE;
 }
 
 async function callAnthropic(text: string): Promise<unknown> {
@@ -89,7 +98,7 @@ export function extractJson(text: string): unknown {
 
 export async function callModel(text: string): Promise<unknown> {
   if (!isRealAiEnabled()) {
-    return MOCK_RESPONSE;
+    return mockResponse();
   }
   return callAnthropic(text);
 }
