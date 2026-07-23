@@ -74,6 +74,7 @@ export default async function DashboardPage() {
                 <th className="py-2 pr-4">Sentiment</th>
                 <th className="py-2 pr-4">Severity</th>
                 <th className="py-2 pr-4">Summary</th>
+                <th className="py-2 pr-4">Suggested Action</th>
                 <th className="py-2 pr-4">Status</th>
               </tr>
             </thead>
@@ -85,6 +86,7 @@ export default async function DashboardPage() {
                   <td className="py-2 pr-4">{toLabel(record.sentiment)}</td>
                   <td className="py-2 pr-4">{toLabel(record.severity)}</td>
                   <td className="py-2 pr-4">{record.summary}</td>
+                  <td className="py-2 pr-4">{record.suggestedAction}</td>
                   <td className="py-2 pr-4">{toLabel(record.status)}</td>
                 </tr>
               ))}
