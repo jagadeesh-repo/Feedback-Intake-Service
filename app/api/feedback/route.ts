@@ -3,6 +3,7 @@ import { SubmitFeedbackRequestSchema } from "@/lib/schema";
 import { createFeedbackRecord } from "@/lib/submit-feedback";
 import { listRecords } from "@/lib/store";
 
+/** POST /api/feedback — creates a record from freeform feedback text. */
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   const parsedRequest = SubmitFeedbackRequestSchema.safeParse(body);
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(outcome.record, { status: 201 });
 }
 
+/** GET /api/feedback — lists all records, newest first. */
 export async function GET() {
   return NextResponse.json(listRecords());
 }

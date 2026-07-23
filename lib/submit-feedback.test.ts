@@ -7,7 +7,6 @@ describe("createFeedbackRecord (mock AI path)", () => {
   beforeEach(() => {
     clearStore();
     delete process.env.USE_REAL_AI;
-    delete process.env.MOCK_AI_MODE;
   });
 
   it("returns ok with a schema-conforming, stored record", async () => {
@@ -50,9 +49,10 @@ describe("createFeedbackRecord (mock AI path)", () => {
     expect(outcome.ok).toBe(true);
   });
 
-  it("stores a flagged record when MOCK_AI_MODE=invalid (the deliberate-failure demo path)", async () => {
-    process.env.MOCK_AI_MODE = "invalid";
-    const outcome = await createFeedbackRecord("trigger a deliberate extraction failure");
+  it("stores a flagged record when the model output never satisfies the contract", async () => {
+    const outcome = await createFeedbackRecord("trigger a deliberate extraction failure", () =>
+      Promise.resolve({ not: "valid content" })
+    );
 
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;

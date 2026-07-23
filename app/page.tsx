@@ -1,9 +1,11 @@
 import { listRecords } from "@/lib/store";
 import { submitFeedbackAction } from "./actions";
+import { SubmitButton } from "./submit-button";
 
-// The stored/API values are lowercase snake_case (the contract per the brief,
-// e.g. "feature_request", "extraction_failed"); this turns them into readable
-// Title Case labels for display only — presentation stays out of the contract.
+// The stored/API values are lowercase (e.g. "praise", "extraction_failed");
+// this turns them into readable Title Case labels for display only — splitting
+// on "_" so snake_case values like "extraction_failed" read as "Extraction
+// Failed". Presentation stays out of the contract.
 function toLabel(value: string): string {
   return value
     .split("_")
@@ -41,12 +43,7 @@ export default async function DashboardPage() {
             placeholder="Describe your feedback in a sentence or two…"
             className="peer w-full rounded border p-3 text-sm"
           />
-          <button
-            type="submit"
-            className="self-start rounded border bg-foreground px-4 py-2 text-sm font-medium text-background peer-placeholder-shown:pointer-events-none peer-placeholder-shown:opacity-50"
-          >
-            Submit
-          </button>
+          <SubmitButton />
         </form>
       </section>
 
@@ -64,7 +61,7 @@ export default async function DashboardPage() {
       </section>
 
       <section>
-        <h2 className="text-lg font-medium mb-2">Records</h2>
+        <h2 className="text-lg font-medium mb-2">Feedback Analysis</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm border-collapse">
             <thead>

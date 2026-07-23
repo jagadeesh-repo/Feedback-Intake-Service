@@ -8,18 +8,12 @@ const MOCK_RESPONSE: FeedbackContent = {
   suggestedAction: "Mocked suggested action.",
 };
 
-// Deliberately violates FeedbackContentSchema (invalid category, missing
-// fields) so that `MOCK_AI_MODE=invalid` can exercise the extraction_failed
-// path end-to-end offline — see README. A testing affordance, mock-path only.
-const INVALID_MOCK_RESPONSE: unknown = { category: "not_a_real_category" };
+const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 function isRealAiEnabled(): boolean {
   return process.env.USE_REAL_AI === "true";
 }
 
-function mockResponse(): unknown {
-  return process.env.MOCK_AI_MODE === "invalid" ? INVALID_MOCK_RESPONSE : MOCK_RESPONSE;
-}
 
 async function callAnthropic(text: string): Promise<unknown> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -35,12 +29,12 @@ async function callAnthropic(text: string): Promise<unknown> {
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-5",
+      model: process.env.ANTHROPIC_MODEL || DEFAULT_ANTHROPIC_MODEL,
       max_tokens: 500,
       messages: [
         {
           role: "user",
-          content: `Extract structured feedback data from the following user feedback. Respond with ONLY a JSON object matching this shape, no prose, no markdown fences:\n{"category": "bug|feature_request|praise|other", "sentiment": "positive|neutral|negative", "severity": "low|medium|high", "summary": "one line summary", "suggestedAction": "short next step"}\n\nFeedback: """${text}"""`,
+          content: `Extract structured feedback data from the following user feedback.Respond with ONLY a JSON object matching this shape, no prose, strictly follow the format, no markdown fences:\n{"category": "praise|complaint|suggestion|question|bug|other", "sentiment": "positive|neutral|negative", "severity": "low|medium|high", "summary": "one line summary", "suggestedAction": "short next step"}\n\nFeedback: """${text}"""`,
         },
       ],
     }),
@@ -89,23 +83,25 @@ export function extractJson(text: string): unknown {
     try {
       return JSON.parse(candidate);
     } catch {
-      // Try the next, looser candidate.
+      // This candidate wasn't valid JSON — intentionally ignore the error and
+      // fall through to the next, looser candidate. If none parse, the raw text
+      // is returned below so schema validation can flag it downstream.
     }
   }
 
   return text;
 }
 
+/** Returns raw model output for the feedback text — the mock fixture unless USE_REAL_AI=true. */
 export async function callModel(text: string): Promise<unknown> {
   if (!isRealAiEnabled()) {
-    return mockResponse();
+    return MOCK_RESPONSE;
   }
   return callAnthropic(text);
 }
 
-export function parseContent(
-  raw: unknown
-): { success: true; data: FeedbackContent } | { success: false; error: string } {
+/** Validates raw model output against the content contract. */
+export function parseContent( raw: unknown): { success: true; data: FeedbackContent } | { success: false; error: string } {
   const result = FeedbackContentSchema.safeParse(raw);
   if (result.success) {
     return { success: true, data: result.data };
@@ -117,6 +113,11 @@ export type ExtractionResult =
   | { status: "ok"; content: FeedbackContent }
   | { status: "extraction_failed"; error: string; rawOutput: unknown };
 
+/**
+ * The invalid-model-output gate: calls the model, and if its output fails the
+ * contract retries once before flagging the result as extraction_failed
+ * rather than throwing or fabricating content.
+ */
 export async function extractFeedbackContent(
   text: string,
   modelCaller: (text: string) => Promise<unknown> = callModel
