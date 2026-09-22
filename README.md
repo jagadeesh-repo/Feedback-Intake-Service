@@ -134,6 +134,6 @@ The `invalid-model-output` Cucumber scenario (`npm run test:bdd`) proves the ext
 ## Project docs
 
 - `PLAN.md` — scope, risks, acceptance criteria (Gherkin).
-- `HARDENING.md` — what was tightened, what was correctly left out for a 4-5 hour exercise, and why.
+- `HARDENING.md` — what was tightened, what was correctly left out.
 - `DECISIONS.md` — key choices, known limitations, and where AI drove implementation vs. where the calls were made directly.
-- `infra/cdk/` — AWS CDK description of the target production shape (API Gateway → Lambda → DynamoDB). Not deployed.
+- `infra/cdk/` — AWS CDK description of the target production shape (API Gateway → Lambda → DynamoDB).
